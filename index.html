@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Nuestro Álbum</title>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --rose: #f8e1e7;
+      --rose-dark: #e8b4bc;
+      --lavender: #e8e0f0;
+      --cream: #fdf8f5;
+      --accent: #d4a5a5;
+      --text: #5c4a4e;
+      --text-light: #8a7378;
+      --white: #ffffff;
+      --shadow: 0 8px 30px rgba(212, 165, 165, 0.18);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(160deg, var(--cream) 0%, var(--rose) 45%, var(--lavender) 100%);
+      min-height: 100vh;
+      color: var(--text);
+      overflow-x: hidden;
+    }
+    h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-weight: 600; }
+
+    #auth-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .auth-card {
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(18px);
+      border-radius: 24px;
+      padding: 36px 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,0.6);
+    }
+    .auth-card h1 { font-size: 2.2rem; text-align: center; margin-bottom: 6px; }
+    .auth-subtitle { text-align: center; color: var(--text-light); margin-bottom: 24px; font-size: 0.95rem; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.82rem; margin-bottom: 5px; color: var(--text-light); }
+    .form-group input {
+      width: 100%; padding: 14px 15px; border: 1.5px solid #e8d5d8;
+      border-radius: 12px; font-size: 1rem; background: white; outline: none;
+    }
+    .form-group input:focus { border-color: var(--accent); }
+
+    .btn {
+      width: 100%; padding: 15px; border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 500; cursor: pointer;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #c48b8b);
+      color: white; margin-top: 6px;
+    }
+    .btn-google {
+      background: white; border: 1.5px solid #e8d5d8; color: var(--text);
+      display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px;
+    }
+    .btn-continue {
+      background: #4caf50; color: white; margin-top: 16px; display: none;
+    }
+
+    .divider { display: flex; align-items: center; margin: 18px 0; color: var(--text-light); font-size: 0.85rem; }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #e8d5d8; }
+    .divider span { padding: 0 12px; }
+
+    .switch-auth { text-align: center; margin-top: 20px; font-size: 0.9rem; color: var(--text-light); }
+    .switch-auth a { color: var(--accent); font-weight: 500; }
+
+    .error-box, .success-box {
+      padding: 12px 14px; border-radius: 10px; font-size: 0.9rem;
+      margin-bottom: 14px; display: none; line-height: 1.4;
+    }
+    .error-box { background: #fde8e8; color: #b33a3a; }
+    .success-box { background: #e8f5e9; color: #2e7d32; }
+
+    #home-screen, #album-screen { display: none; min-height: 100vh; }
+
+    .topbar {
+      background: rgba(255,255,255,0.85); backdrop-filter: blur(14px);
+      padding: 13px 16px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(232,181,188,0.3); position: sticky; top: 0; z-index: 40;
+    }
+    .topbar h2 { font-size: 1.35rem; }
+    .user-info { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+    .btn-sm {
+      padding: 7px 12px; border-radius: 9px; border: 1.5px solid var(--accent);
+      background: transparent; color: var(--accent); font-size: 0.85rem; font-weight: 500;
+    }
+
+    .home-content { max-width: 680px; margin: 32px auto; padding: 0 14px 50px; }
+    .home-cards { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 24px; }
+    @media (min-width: 560px) { .home-cards { grid-template-columns: 1fr 1fr; } }
+
+    .home-card {
+      background: rgba(255,255,255,0.85); border-radius: 18px; padding: 24px 18px;
+      text-align: center; box-shadow: var(--shadow); border: 1px solid rgba(255,255,255,0.7);
+    }
+    .home-card h3 { font-size: 1.3rem; margin-bottom: 8px; }
+    .home-card p { color: var(--text-light); font-size: 0.9rem; margin-bottom: 16px; line-height: 1.4; }
+
+    .invite-code-box {
+      background: var(--rose); border-radius: 12px; padding: 13px; margin: 12px 0;
+      font-size: 1.3rem; font-weight: 600; letter-spacing: 3px; text-align: center;
+    }
+
+    .album-layout { display: flex; flex-direction: column; min-height: calc(100vh - 56px); }
+    @media (min-width: 768px) { .album-layout { flex-direction: row; } }
+
+    .sidebar {
+      width: 100%; background: rgba(255,255,255,0.72); padding: 16px 14px;
+      border-bottom: 1px solid rgba(232,181,188,0.25);
+    }
+    @media (min-width: 768px) {
+      .sidebar { width: 250px; border-right: 1px solid rgba(232,181,188,0.25); border-bottom: none; min-height: calc(100vh - 56px); }
+    }
+    .sidebar h3 { font-size: 1.05rem; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .section-item {
+      padding: 11px 13px; border-radius: 10px; margin-bottom: 4px; cursor: pointer; font-size: 0.93rem;
+    }
+    .section-item.active, .section-item:active { background: var(--rose); font-weight: 500; }
+
+    .main-content { flex: 1; padding: 18px 14px 40px; }
+    .album-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+    @media (min-width: 480px) {
+      .album-header { flex-direction: row; justify-content: space-between; align-items: center; }
+    }
+    .album-title h1 { font-size: 1.65rem; }
+    .album-title p { color: var(--text-light); font-size: 0.88rem; margin-top: 3px; }
+
+    .photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+    .photo-card {
+      position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 1;
+      background: var(--rose); box-shadow: var(--shadow);
+    }
+    .photo-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-actions { position: absolute; top: 5px; right: 5px; display: none; }
+    .photo-card:active .photo-actions { display: block; }
+    .photo-actions button {
+      background: rgba(255,255,255,0.93); border: none; width: 28px; height: 28px;
+      border-radius: 50%; font-size: 0.8rem;
+    }
+
+    .empty-state { text-align: center; padding: 50px 16px; color: var(--text-light); }
+    .empty-state h3 { font-size: 1.35rem; margin-bottom: 6px; color: var(--text); }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
+    }
+    .modal {
+      background: white; border-radius: 18px; padding: 24px 20px; width: 100%; max-width: 360px;
+    }
+    .modal h3 { font-size: 1.3rem; margin-bottom: 14px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .modal-actions .btn { flex: 1; }
+    .btn-secondary { background: #f5f0f0; color: var(--text); }
+
+    .lightbox {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.93);
+      display: none; align-items: center; justify-content: center; z-index: 200;
+    }
+    .lightbox img { max-width: 94%; max-height: 88%; border-radius: 6px; }
+    .lightbox-close {
+      position: absolute; top: 16px; right: 20px; color: white; font-size: 2rem;
+      background: none; border: none;
+    }
+
+    .loading { text-align: center; padding: 36px 16px; color: var(--text-light); }
+    .spinner {
+      width: 30px; height: 30px; border: 3px solid var(--rose); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.75s linear infinite; margin: 0 auto 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .upload-progress {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: white; padding: 11px 18px; border-radius: 30px; box-shadow: var(--shadow);
+      display: none; align-items: center; gap: 10px; z-index: 90; font-size: 0.9rem;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- AUTH -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <h1>Nuestro Álbum</h1>
+      <p class="auth-subtitle">Un espacio solo para ustedes dos</p>
+
+      <div id="error-box" class="error-box"></div>
+      <div id="success-box" class="success-box"></div>
+
+      <!-- Botón de emergencia para celular -->
+      <button class="btn btn-continue" id="btn-force-continue" onclick="forceContinue()">
+        Ya inicié sesión → Continuar
+      </button>
+
+      <button class="btn btn-google" id="btn-google" onclick="loginGoogle()">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
+        Continuar con Google
+      </button>
+
+      <div class="divider"><span>o con correo</span></div>
+
+      <div id="login-form">
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input type="email" id="email" placeholder="tu@correo.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="btn btn-primary" id="btn-login" onclick="loginEmail()">Entrar</button>
+        <p class="switch-auth">¿No tienes cuenta? <a onclick="showRegister()">Crear cuenta</a></p>
+      </div>
+
+      <div id="register-form" class="hidden">
+        <div class="form-group">
+          <label>Tu nombre</label>
+          <input type="text" id="reg-name" placeholder="Cómo te llamas" />
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico</label>
+          <input type="email" id="reg-email" placeholder="tu@correo.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label>Contraseña (mínimo 6 caracteres)</label>
+          <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+        <button class="btn btn-primary" id="btn-register" onclick="registerEmail()">Crear cuenta</button>
+        <p class="switch-auth">¿Ya tienes cuenta? <a onclick="showLogin()">Iniciar sesión</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <div id="home-screen">
+    <div class="topbar">
+      <h2>Nuestro Álbum</h2>
+      <div class="user-info">
+        <span id="user-name-display"></span>
+        <button class="btn-sm" onclick="logout()">Salir</button>
+      </div>
+    </div>
+    <div class="home-content">
+      <h1 style="text-align:center;font-size:1.9rem;margin-bottom:4px;">Bienvenidos</h1>
+      <p style="text-align:center;color:var(--text-light);margin-bottom:6px;">Crea un álbum o únete al de tu pareja</p>
+      <div class="home-cards">
+        <div class="home-card">
+          <h3>Crear álbum</h3>
+          <p>Crea un espacio nuevo y comparte el código</p>
+          <div class="form-group">
+            <input type="text" id="new-album-name" placeholder="Nombre del álbum" />
+          </div>
+          <button class="btn btn-primary" onclick="createAlbum()">Crear álbum</button>
+        </div>
+        <div class="home-card">
+          <h3>Unirse a un álbum</h3>
+          <p>Escribe el código de tu pareja</p>
+          <div class="form-group">
+            <input type="text" id="join-code" placeholder="Código de 6 letras" style="text-transform:uppercase;letter-spacing:2px;text-align:center;" />
+          </div>
+          <button class="btn btn-primary" onclick="joinAlbum()">Unirme</button>
+        </div>
+      </div>
+      <div id="my-albums-list" style="margin-top:32px;"></div>
+    </div>
+  </div>
+
+  <!-- ALBUM -->
+  <div id="album-screen">
+    <div class="topbar">
+      <h2 id="album-title">Álbum</h2>
+      <div class="user-info">
+        <button class="btn-sm" onclick="showInviteModal()">Código</button>
+        <button class="btn-sm" onclick="goHome()">Inicio</button>
+        <button class="btn-sm" onclick="logout()">Salir</button>
+      </div>
+    </div>
+    <div class="album-layout">
+      <div class="sidebar">
+        <h3>
+          Secciones
+          <button class="btn-sm" style="padding:3px 9px;font-size:0.78rem;" onclick="showAddSectionModal()">+</button>
+        </h3>
+        <div id="sections-list"></div>
+      </div>
+      <div class="main-content">
+        <div class="album-header">
+          <div class="album-title">
+            <h1 id="section-title">General</h1>
+            <p id="photo-count">0 fotos</p>
+          </div>
+          <label class="btn btn-primary" style="width:auto;padding:11px 16px;display:inline-block;">
+            + Subir fotos
+            <input type="file" id="file-input" accept="image/*" multiple hidden onchange="handleUpload(event)" />
+          </label>
+        </div>
+        <div id="photos-area">
+          <div class="empty-state"><h3>Aún no hay fotos</h3><p>Sube la primera foto</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal"><div class="modal" id="modal-body"></div></div>
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close">×</button>
+    <img id="lightbox-img" src="" alt="" />
+  </div>
+  <div class="upload-progress" id="upload-toast">
+    <div class="spinner" style="width:20px;height:20px;margin:0;border-width:2px;"></div>
+    <span id="upload-msg">Subiendo...</span>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCcnVgj6wihXZlgrEh-YDPJD9BD-3wKaEQ",
+      authDomain: "albumpareja-bfb17.firebaseapp.com",
+      projectId: "albumpareja-bfb17",
+      storageBucket: "albumpareja-bfb17.firebasestorage.app",
+      messagingSenderId: "282322430357",
+      appId: "1:282322430357:web:108f3538d96214df38ae9c"
+    };
+    const CLOUD_NAME = "cfx9y99u";
+    const UPLOAD_PRESET = "album-pareja";
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let currentAlbumId = null;
+    let currentSectionId = "general";
+    let albumData = null;
+
+    function showError(msg) {
+      const box = document.getElementById("error-box");
+      box.textContent = msg;
+      box.style.display = "block";
+      document.getElementById("success-box").style.display = "none";
+      setTimeout(() => box.style.display = "none", 5000);
+    }
+    function showSuccess(msg) {
+      const box = document.getElementById("success-box");
+      box.textContent = msg;
+      box.style.display = "block";
+      document.getElementById("error-box").style.display = "none";
+      setTimeout(() => box.style.display = "none", 3000);
+    }
+    function showScreen(name) {
+      document.getElementById("auth-screen").style.display = name === "auth" ? "flex" : "none";
+      document.getElementById("home-screen").style.display = name === "home" ? "block" : "none";
+      document.getElementById("album-screen").style.display = name === "album" ? "block" : "none";
+    }
+
+    // ========== AUTH STATE (mejorado para celular) ==========
+    auth.onAuthStateChanged((user) => {
+      console.log("Auth:", user ? user.email : "null");
+      if (user) {
+        currentUser = user;
+        document.getElementById("user-name-display").textContent = user.displayName || user.email.split("@")[0];
+        
+        // Forzar cambio de pantalla (soluciona el problema del celular)
+        setTimeout(() => {
+          showScreen("home");
+          loadMyAlbums();
+          // Ocultar botón de emergencia
+          document.getElementById("btn-force-continue").style.display = "none";
+        }, 300);
+      } else {
+        currentUser = null;
+        currentAlbumId = null;
+        showScreen("auth");
+      }
+    });
+
+    // Botón de emergencia (aparece si detecta usuario pero sigue en login)
+    function checkStuckOnLogin() {
+      if (auth.currentUser && document.getElementById("auth-screen").style.display !== "none") {
+        document.getElementById("btn-force-continue").style.display = "block";
+      }
+    }
+    // Revisar cada 1.5 segundos por si se queda trabado
+    setInterval(checkStuckOnLogin, 1500);
+
+    function forceContinue() {
+      if (auth.currentUser) {
+        currentUser = auth.currentUser;
+        document.getElementById("user-name-display").textContent = currentUser.displayName || currentUser.email.split("@")[0];
+        showScreen("home");
+        loadMyAlbums();
+        document.getElementById("btn-force-continue").style.display = "none";
+      }
+    }
+
+    function showRegister() {
+      document.getElementById("login-form").classList.add("hidden");
+      document.getElementById("register-form").classList.remove("hidden");
+      document.getElementById("error-box").style.display = "none";
+    }
+    function showLogin() {
+      document.getElementById("register-form").classList.add("hidden");
+      document.getElementById("login-form").classList.remove("hidden");
+      document.getElementById("error-box").style.display = "none";
+    }
+
+    async function loginGoogle() {
+      const btn = document.getElementById("btn-google");
+      btn.disabled = true;
+      btn.innerHTML = "Conectando...";
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await auth.signInWithPopup(provider);
+        // Forzar inmediatamente
+        setTimeout(() => {
+          if (auth.currentUser) forceContinue();
+        }, 500);
+      } catch (error) {
+        console.error(error);
+        let msg = "Error con Google.";
+        if (error.code === "auth/popup-closed-by-user") msg = "Cerraste la ventana. Intenta de nuevo.";
+        else if (error.code === "auth/popup-blocked") msg = "Permite ventanas emergentes e intenta de nuevo.";
+        else if (error.code === "auth/unauthorized-domain") msg = "Prueba con correo o sube el sitio a internet.";
+        else msg = error.message || "Error desconocido";
+        showError(msg);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg> Continuar con Google`;
+      }
+    }
+
+    async function loginEmail() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      if (!email || !password) return showError("Escribe correo y contraseña");
+
+      const btn = document.getElementById("btn-login");
+      btn.disabled = true; btn.textContent = "Entrando...";
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        setTimeout(() => { if (auth.currentUser) forceContinue(); }, 400);
+      } catch (error) {
+        if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+          showError("Correo o contraseña incorrectos");
+        } else {
+          showError(error.message);
+        }
+      } finally {
+        btn.disabled = false; btn.textContent = "Entrar";
+      }
+    }
+
+    async function registerEmail() {
+      const name = document.getElementById("reg-name").value.trim();
+      const email = document.getElementById("reg-email").value.trim();
+      const password = document.getElementById("reg-password").value;
+
+      if (!name || !email || !password) return showError("Completa todos los campos");
+      if (password.length < 6) return showError("Mínimo 6 caracteres en la contraseña");
+
+      const btn = document.getElementById("btn-register");
+      btn.disabled = true; btn.textContent = "Creando...";
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({ displayName: name });
+        showSuccess("¡Cuenta creada!");
+        setTimeout(() => { if (auth.currentUser) forceContinue(); }, 500);
+      } catch (error) {
+        if (error.code === "auth/email-already-in-use") showError("Este correo ya está registrado");
+        else if (error.code === "auth/invalid-email") showError("Correo no válido");
+        else showError(error.message);
+      } finally {
+        btn.disabled = false; btn.textContent = "Crear cuenta";
+      }
+    }
+
+    function logout() { auth.signOut(); }
+
+    // ========== ALBUMS ==========
+    function generateCode() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "";
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    async function createAlbum() {
+      const name = document.getElementById("new-album-name").value.trim() || "Nuestro Álbum";
+      try {
+        const code = generateCode();
+        const ref = await db.collection("albums").add({
+          name, code,
+          ownerId: currentUser.uid,
+          members: [currentUser.uid],
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          sections: [{ id: "general", name: "General", order: 0 }]
+        });
+        await db.collection("users").doc(currentUser.uid).set({
+          albums: firebase.firestore.FieldValue.arrayUnion(ref.id)
+        }, { merge: true });
+        openAlbum(ref.id);
+      } catch (e) {
+        alert("Error: " + e.message);
+      }
+    }
+
+    async function joinAlbum() {
+      const code = document.getElementById("join-code").value.trim().toUpperCase();
+      if (code.length < 4) return alert("Escribe el código completo");
+      try {
+        const snap = await db.collection("albums").where("code", "==", code).limit(1).get();
+        if (snap.empty) return alert("Código no encontrado");
+        const doc = snap.docs[0];
+        const data = doc.data();
+        if (!data.members.includes(currentUser.uid)) {
+          await doc.ref.update({ members: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+          await db.collection("users").doc(currentUser.uid).set({
+            albums: firebase.firestore.FieldValue.arrayUnion(doc.id)
+          }, { merge: true });
+        }
+        openAlbum(doc.id);
+      } catch (e) {
+        alert("Error: " + e.message);
+      }
+    }
+
+    async function loadMyAlbums() {
+      const container = document.getElementById("my-albums-list");
+      container.innerHTML = `<div class="loading"><div class="spinner"></div>Cargando...</div>`;
+      try {
+        const userDoc = await db.collection("users").doc(currentUser.uid).get();
+        const albumIds = userDoc.exists ? (userDoc.data().albums || []) : [];
+        if (!albumIds.length) { container.innerHTML = ""; return; }
+
+        let html = `<h3 style="margin-bottom:14px;font-size:1.25rem;">Tus álbumes</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">`;
+        for (const id of albumIds) {
+          const a = await db.collection("albums").doc(id).get();
+          if (a.exists) {
+            const d = a.data();
+            html += `<div class="home-card" style="padding:18px;cursor:pointer;" onclick="openAlbum('${id}')">
+              <h3 style="font-size:1.2rem;margin-bottom:4px;">${d.name}</h3>
+              <p style="font-size:0.82rem;margin:0;">Código: <strong>${d.code}</strong></p>
+            </div>`;
+          }
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = "";
+      }
+    }
+
+    async function openAlbum(albumId) {
+      currentAlbumId = albumId;
+      currentSectionId = "general";
+      showScreen("album");
+      await loadAlbumData();
+    }
+
+    async function loadAlbumData() {
+      try {
+        const doc = await db.collection("albums").doc(currentAlbumId).get();
+        if (!doc.exists) return goHome();
+        albumData = doc.data();
+        document.getElementById("album-title").textContent = albumData.name;
+        renderSections();
+        loadPhotos();
+      } catch (e) {
+        goHome();
+      }
+    }
+
+    function goHome() {
+      currentAlbumId = null;
+      showScreen("home");
+      loadMyAlbums();
+    }
+
+    function renderSections() {
+      const list = document.getElementById("sections-list");
+      const sections = albumData.sections || [{ id: "general", name: "General", order: 0 }];
+      list.innerHTML = sections.sort((a,b) => (a.order||0)-(b.order||0)).map(s => `
+        <div class="section-item ${s.id === currentSectionId ? 'active' : ''}" onclick="selectSection('${s.id}')">❀ ${s.name}</div>
+      `).join("");
+    }
+
+    function selectSection(id) {
+      currentSectionId = id;
+      const section = (albumData.sections || []).find(s => s.id === id);
+      document.getElementById("section-title").textContent = section ? section.name : "General";
+      renderSections();
+      loadPhotos();
+    }
+
+    function showAddSectionModal() {
+      document.getElementById("modal-body").innerHTML = `
+        <h3>Nueva sección</h3>
+        <div class="form-group"><label>Nombre</label>
+          <input type="text" id="new-section-name" placeholder="Viajes, Citas, Familia..." />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="addSection()">Crear</button>
+        </div>`;
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    async function addSection() {
+      const name = document.getElementById("new-section-name").value.trim();
+      if (!name) return;
+      const id = "sec_" + Date.now();
+      const sections = albumData.sections || [];
+      sections.push({ id, name, order: sections.length });
+      await db.collection("albums").doc(currentAlbumId).update({ sections });
+      albumData.sections = sections;
+      closeModal();
+      renderSections();
+      selectSection(id);
+    }
+
+    function showInviteModal() {
+      document.getElementById("modal-body").innerHTML = `
+        <h3>Código de invitación</h3>
+        <p style="color:var(--text-light);margin-bottom:10px;font-size:0.93rem;">Comparte este código:</p>
+        <div class="invite-code-box">${albumData.code}</div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${albumData.code}');alert('¡Copiado!')">Copiar</button>
+          <button class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
+        </div>`;
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function closeModal() { document.getElementById("modal").style.display = "none"; }
+
+    async function loadPhotos() {
+      const area = document.getElementById("photos-area");
+      area.innerHTML = `<div class="loading"><div class="spinner"></div>Cargando...</div>`;
+      try {
+        let q = db.collection("albums").doc(currentAlbumId).collection("photos").orderBy("createdAt", "desc");
+        if (currentSectionId && currentSectionId !== "general") {
+          q = q.where("sectionId", "==", currentSectionId);
+        }
+        const snap = await q.get();
+        const photos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        document.getElementById("photo-count").textContent = photos.length + (photos.length === 1 ? " foto" : " fotos");
+
+        if (!photos.length) {
+          area.innerHTML = `<div class="empty-state"><h3>Aún no hay fotos</h3><p>Sube la primera</p></div>`;
+          return;
+        }
+        area.innerHTML = `<div class="photos-grid">` + photos.map(p => `
+          <div class="photo-card">
+            <img src="${p.url}" loading="lazy" onclick="openLightbox('${p.url}')" />
+            <div class="photo-actions"><button onclick="event.stopPropagation();deletePhoto('${p.id}')">🗑</button></div>
+          </div>`).join("") + `</div>`;
+      } catch (e) {
+        area.innerHTML = `<div class="empty-state"><p>Error al cargar</p></div>`;
+      }
+    }
+
+    async function handleUpload(e) {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      const toast = document.getElementById("upload-toast");
+      const msg = document.getElementById("upload-msg");
+      toast.style.display = "flex";
+      for (let i = 0; i < files.length; i++) {
+        msg.textContent = `Subiendo ${i+1}/${files.length}...`;
+        try {
+          const url = await uploadToCloudinary(files[i]);
+          await db.collection("albums").doc(currentAlbumId).collection("photos").add({
+            url, sectionId: currentSectionId || "general",
+            uploadedBy: currentUser.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (err) {
+          alert("Error al subir una foto");
+        }
+      }
+      toast.style.display = "none";
+      e.target.value = "";
+      loadPhotos();
+    }
+
+    function uploadToCloudinary(file) {
+      return new Promise((resolve, reject) => {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("upload_preset", UPLOAD_PRESET);
+        fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: "POST", body: fd })
+          .then(r => r.json())
+          .then(d => d.secure_url ? resolve(d.secure_url) : reject(d))
+          .catch(reject);
+      });
+    }
+
+    async function deletePhoto(id) {
+      if (!confirm("¿Eliminar esta foto?")) return;
+      await db.collection("albums").doc(currentAlbumId).collection("photos").doc(id).delete();
+      loadPhotos();
+    }
+
+    function openLightbox(url) {
+      document.getElementById("lightbox-img").src = url;
+      document.getElementById("lightbox").style.display = "flex";
+    }
+    function closeLightbox() { document.getElementById("lightbox").style.display = "none"; }
+
+    document.getElementById("modal").addEventListener("click", e => {
+      if (e.target.id === "modal") closeModal();
+    });
+  </script>
+</body>
+</html>
