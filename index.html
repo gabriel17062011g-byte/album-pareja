@@ -807,15 +807,20 @@
       const area = document.getElementById("photos-area");
       area.innerHTML = `<div class="loading"><div class="spinner"></div>Cargando...</div>`;
       try {
-        let q = db.collection("albums").doc(currentAlbumId)
-                  .collection("photos")
-                  .orderBy("createdAt", "desc");
+        // Traemos todas las fotos del álbum y filtramos en el cliente
+        // (evita errores de índice y funciona con fotos antiguas)
+        const snap = await db.collection("albums").doc(currentAlbumId)
+                      .collection("photos")
+                      .orderBy("createdAt", "desc")
+                      .get();
 
-        // Filtrar por sección actual (siempre, incluyendo general)
-        q = q.where("sectionId", "==", currentSectionId);
+        let items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        const snap = await q.get();
-        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Filtrar por la sección actual (fotos viejas sin sectionId se tratan como "general")
+        items = items.filter(item => {
+          const sec = item.sectionId || "general";
+          return sec === currentSectionId;
+        });
 
         document.getElementById("photo-count").textContent = 
           items.length + (items.length === 1 ? " elemento" : " elementos");
@@ -826,7 +831,7 @@
         }
 
         area.innerHTML = `<div class="photos-grid">` + items.map(item => {
-          const isVideo = item.type === "video" || (item.url && item.url.includes("/video/"));
+          const isVideo = item.type === "video" || (item.url && (item.url.includes("/video/") || item.url.match(/\.(mp4|webm|mov)(\?|$)/i)));
           return `
             <div class="photo-card">
               ${isVideo 
@@ -841,7 +846,7 @@
         }).join("") + `</div>`;
       } catch (e) {
         console.error(e);
-        area.innerHTML = `<div class="empty-state"><p>Error al cargar</p></div>`;
+        area.innerHTML = `<div class="empty-state"><p>Error al cargar: ${e.message}</p></div>`;
       }
     }
 
